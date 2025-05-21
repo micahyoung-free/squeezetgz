@@ -89,9 +89,16 @@ func half(b []byte) ([]byte, []byte) {
 
 func compressSize(data []byte) int {
 	var buf bytes.Buffer
-	gw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
-	gw.Write(data)
-	gw.Close()
+	gw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return 0 // Return 0 if compression initialization fails
+	}
+	if _, err := gw.Write(data); err != nil {
+		return 0 // Return 0 if writing data fails
+	}
+	if err := gw.Close(); err != nil {
+		return 0 // Return 0 if closing the writer fails
+	}
 	return buf.Len()
 }
 
