@@ -4,8 +4,9 @@ Command-line tool to maximize compression of tar.gz files by re-ordering the fil
 
 ## Requirements
 
-* Use Go 1.24
 * Use `klauspost/compress` for optimized compression speed
+* Use maximum gzip compression settings
+* Recompress input tar.gz in order to calculate and print comparable `Before` and `After` size output
 * Generate tests that use:
   * four generated alphabetical testdata files whose first and last (compression window / 2) bytes containing identical bytes to exactly one other file
   * two generated testdata files with random noise
