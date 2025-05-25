@@ -10,17 +10,17 @@ Command-line tool to maximize compression of tar.gz files by re-ordering the fil
 * Generate tests that use:
   * four generated alphabetical testdata files whose first and last (compression window / 2) bytes containing identical bytes to exactly one other file
   * two generated testdata files with random noise
-  * scenarios that confirm that identical arrangements are found for both the compression-window mode and brute force mode
+  * scenarios that start with statically-shuffled order and confirm that optimal file orders are found for both the compression-window mode and brute-force mode
 
 ### Graph-based, compression-window optimizing mode
 
 * Loop through all files within the tar contents
-* Start by selecting file with maximum compression ratio for the last (compression window / 2) bytes
+* Start by selecting file with worst overall compression ratio
 * Next, select the file with maximum compression ratio for the first (compression window / 2) bytes combined with the previous file's last (compression window / 2) bytes
 * Collect checksums of all individual, original file contents and headers
 * Continue until an optimally-compressed chain of files is built
 * Generate a new tar.gz from the chain of files
-* Validate checksums of all indivual file contents and headers
+* Validate all checksums from original file contents and header are present in the new chain of files
 * Output the new tar.gz file
 
 ### Brute-force mode
