@@ -77,10 +77,9 @@ func generateAlphabeticalBytes(size int, startChar byte) []byte {
 	result := make([]byte, size)
 	for i := range result {
 		// Cycle through alphabet starting from startChar
-		result[i] = (startChar + byte(i)) % 26
-		if result[i] < 'A' {
-			result[i] += 'A'
-		}
+		result[i] = 'A' + (startChar-'A'+byte(i))%26
+		// Ensure result stays within the range of uppercase letters
+		// No additional adjustment needed as normalization handles it
 	}
 	return result
 }
