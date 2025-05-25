@@ -279,6 +279,77 @@ func verifyOrderPreservesCriteria(t *testing.T, windowOrder, bruteOrder []string
 	}
 }
 
+func TestSpecialFileTypes(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "squeezetgz-special-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Generate test files including special types
+	testFiles, err := testutils.GenerateTestFiles()
+	if err != nil {
+		t.Fatalf("Failed to generate test files: %v", err)
+	}
+
+	// Create test tar.gz
+	tarGzData, err := testutils.CreateTarGz(testFiles)
+	if err != nil {
+		t.Fatalf("Failed to create test tar.gz: %v", err)
+	}
+
+	// Write the test tar.gz to a file
+	inputPath := filepath.Join(tempDir, "special_input.tar.gz")
+	if err := os.WriteFile(inputPath, tarGzData, 0644); err != nil {
+		t.Fatalf("Failed to write test tar.gz: %v", err)
+	}
+
+	// Optimize the tar.gz
+	outputPath := filepath.Join(tempDir, "special_output.tar.gz")
+	_, err = squeezetgz.OptimizeTarGz(inputPath, outputPath, squeezetgz.WindowMode)
+	if err != nil {
+		t.Fatalf("Failed to optimize tar.gz: %v", err)
+	}
+
+	// Verify all file types are preserved
+	inputFiles, err := testutils.GetFileOrder(inputPath)
+	if err != nil {
+		t.Fatalf("Failed to list input tar.gz contents: %v", err)
+	}
+
+	outputFiles, err := testutils.GetFileOrder(outputPath)
+	if err != nil {
+		t.Fatalf("Failed to list output tar.gz contents: %v", err)
+	}
+
+	// Check that all file types and entries are preserved
+	if len(inputFiles) != len(outputFiles) {
+		t.Fatalf("Input had %d entries, output has %d entries", len(inputFiles), len(outputFiles))
+	}
+
+	// Ensure both empty file and symlink exist in the output
+	emptyFound := false
+	symlinkFound := false
+
+	for _, name := range outputFiles {
+		if name == "empty.txt" {
+			emptyFound = true
+		}
+		if name == "link-to-file1.txt" {
+			symlinkFound = true
+		}
+	}
+
+	if !emptyFound {
+		t.Errorf("Empty file 'empty.txt' is missing from output")
+	}
+	
+	if !symlinkFound {
+		t.Errorf("Symlink 'link-to-file1.txt' is missing from output")
+	}
+}
+
 // abs returns the absolute value of x
 func abs(x int) int {
 	if x < 0 {
