@@ -38,7 +38,7 @@ func TestOptimizeTarGz(t *testing.T) {
 	// Test the window optimization mode
 	t.Run("WindowMode", func(t *testing.T) {
 		outputPath := filepath.Join(tempDir, "output_window.tar.gz")
-		result, err := squeezetgz.OptimizeTarGz(inputPath, outputPath, squeezetgz.WindowMode)
+		result, err := squeezetgz.OptimizeTarGz(inputPath, outputPath, squeezetgz.WindowMode, false)
 		if err != nil {
 			t.Fatalf("Failed to optimize tar.gz with window mode: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestOptimizeTarGz(t *testing.T) {
 	// Test the brute force optimization mode
 	t.Run("BruteForceMode", func(t *testing.T) {
 		outputPath := filepath.Join(tempDir, "output_brute.tar.gz")
-		result, err := squeezetgz.OptimizeTarGz(inputPath, outputPath, squeezetgz.BruteForceMode)
+		result, err := squeezetgz.OptimizeTarGz(inputPath, outputPath, squeezetgz.BruteForceMode, false)
 		if err != nil {
 			t.Fatalf("Failed to optimize tar.gz with brute force mode: %v", err)
 		}

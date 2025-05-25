@@ -11,6 +11,7 @@ import (
 var (
 	bruteMode = flag.Bool("brute", false, "Use brute-force mode")
 	_         = flag.Bool("window", true, "Use compression-window optimizing mode (default)")
+	debug     = flag.Bool("debug", false, "Enable debug output")
 )
 
 func main() {
@@ -38,7 +39,7 @@ func main() {
 	}
 
 	// Run the optimization
-	result, err := squeezetgz.OptimizeTarGz(inputFile, outputFile, mode)
+	result, err := squeezetgz.OptimizeTarGz(inputFile, outputFile, mode, *debug)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
