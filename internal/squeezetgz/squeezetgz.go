@@ -252,7 +252,10 @@ func findBestStartFile(files []*TarFile, halfWindowSize int) int {
 
 	for i, file := range files {
 		// Compress just the last window
-		compressed := compressBytes(file.LastWindow)
+		compressed, err := compressBytes(file.LastWindow)
+		if err != nil {
+			continue
+		}
 		ratio := float64(len(compressed)) / float64(len(file.LastWindow))
 
 		if ratio < bestRatio {
@@ -290,7 +293,10 @@ func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize i
 
 		// Combine the last window of the previous file with the candidate's header and first window
 		combined := append(append(lastFile.LastWindow, headerBytes...), candidate.FirstWindow...)
-		compressed := compressBytes(combined)
+		compressed, err := compressBytes(combined)
+		if err != nil {
+			continue
+		}
 		ratio := float64(len(compressed)) / float64(len(combined))
 
 		if debug {
@@ -318,10 +324,12 @@ func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize i
 		}
 		
 		combinedBest := append(append(lastFile.LastWindow, headerBytes...), candidates[bestIdx].FirstWindow...)
-		compressedBest := compressBytes(combinedBest)
-		fmt.Printf("Selected Best Candidate: %s (Index: %d, Ratio: %.4f)\n", 
-			candidates[bestIdx].Header.Name, bestIdx, 
-			float64(len(compressedBest))/float64(len(combinedBest)))
+		compressedBest, err := compressBytes(combinedBest)
+		if err == nil {
+			fmt.Printf("Selected Best Candidate: %s (Index: %d, Ratio: %.4f)\n", 
+				candidates[bestIdx].Header.Name, bestIdx, 
+				float64(len(compressedBest))/float64(len(combinedBest)))
+		}
 	}
 
 	return bestIdx
