@@ -178,7 +178,7 @@ func optimizeWindow(files []*TarFile, halfWindowSize int) ([]*TarFile, error) {
 	remaining := make([]*TarFile, len(files))
 	copy(remaining, files)
 
-	// Start with the file that has the best compression ratio for its last window
+	// Start with the file that has the worst compression ratio overall (least compressible)
 	var ordered []*TarFile
 	bestStartIdx := findBestStartFile(remaining, halfWindowSize)
 	ordered = append(ordered, remaining[bestStartIdx])
