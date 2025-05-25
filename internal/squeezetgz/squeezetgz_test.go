@@ -210,9 +210,21 @@ func verifyOptimizedOrder(t *testing.T, fileOrder []string, modeName string) {
 	pos3 := findPos("file3.txt")
 	pos4 := findPos("file4.txt")
 	
-	// Verify all files are present
+	// Verify all regular files are present
 	if pos1 == -1 || pos2 == -1 || pos3 == -1 || pos4 == -1 {
 		t.Fatalf("Not all test files found in output order")
+	}
+	
+	// Verify special files are present (empty file and symlink)
+	emptyFilePos := findPos("empty.txt")
+	symlinkPos := findPos("link-to-file1.txt")
+	
+	if emptyFilePos == -1 {
+		t.Errorf("%s: Empty file 'empty.txt' is missing from output", modeName)
+	}
+	
+	if symlinkPos == -1 {
+		t.Errorf("%s: Symlink 'link-to-file1.txt' is missing from output", modeName)
 	}
 	
 	// Check for expected patterns - at least one of these should be true for optimal compression:
@@ -276,77 +288,6 @@ func verifyOrderPreservesCriteria(t *testing.T, windowOrder, bruteOrder []string
 	if (windowFile1File2Adjacent != bruteFile1File2Adjacent) && 
 	   (windowFile3File4Adjacent != bruteFile3File4Adjacent) {
 		t.Logf("Warning: Window and brute force modes differ in adjacency patterns")
-	}
-}
-
-func TestSpecialFileTypes(t *testing.T) {
-	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "squeezetgz-special-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Generate test files including special types
-	testFiles, err := testutils.GenerateTestFiles()
-	if err != nil {
-		t.Fatalf("Failed to generate test files: %v", err)
-	}
-
-	// Create test tar.gz
-	tarGzData, err := testutils.CreateTarGz(testFiles)
-	if err != nil {
-		t.Fatalf("Failed to create test tar.gz: %v", err)
-	}
-
-	// Write the test tar.gz to a file
-	inputPath := filepath.Join(tempDir, "special_input.tar.gz")
-	if err := os.WriteFile(inputPath, tarGzData, 0644); err != nil {
-		t.Fatalf("Failed to write test tar.gz: %v", err)
-	}
-
-	// Optimize the tar.gz
-	outputPath := filepath.Join(tempDir, "special_output.tar.gz")
-	_, err = squeezetgz.OptimizeTarGz(inputPath, outputPath, squeezetgz.WindowMode)
-	if err != nil {
-		t.Fatalf("Failed to optimize tar.gz: %v", err)
-	}
-
-	// Verify all file types are preserved
-	inputFiles, err := testutils.GetFileOrder(inputPath)
-	if err != nil {
-		t.Fatalf("Failed to list input tar.gz contents: %v", err)
-	}
-
-	outputFiles, err := testutils.GetFileOrder(outputPath)
-	if err != nil {
-		t.Fatalf("Failed to list output tar.gz contents: %v", err)
-	}
-
-	// Check that all file types and entries are preserved
-	if len(inputFiles) != len(outputFiles) {
-		t.Fatalf("Input had %d entries, output has %d entries", len(inputFiles), len(outputFiles))
-	}
-
-	// Ensure both empty file and symlink exist in the output
-	emptyFound := false
-	symlinkFound := false
-
-	for _, name := range outputFiles {
-		if name == "empty.txt" {
-			emptyFound = true
-		}
-		if name == "link-to-file1.txt" {
-			symlinkFound = true
-		}
-	}
-
-	if !emptyFound {
-		t.Errorf("Empty file 'empty.txt' is missing from output")
-	}
-	
-	if !symlinkFound {
-		t.Errorf("Symlink 'link-to-file1.txt' is missing from output")
 	}
 }
 
