@@ -178,7 +178,7 @@ func optimizeWindow(files []*TarFile, halfWindowSize int) ([]*TarFile, error) {
 	remaining := make([]*TarFile, len(files))
 	copy(remaining, files)
 
-	// Start with the file that has the best compression ratio for its last window
+	// Start with the file that has the worst compression ratio overall (least compressible)
 	var ordered []*TarFile
 	bestStartIdx := findBestStartFile(remaining, halfWindowSize)
 	ordered = append(ordered, remaining[bestStartIdx])
@@ -245,21 +245,22 @@ func permuteAndCompress(files []*TarFile, index int, bestOrder *[]*TarFile, best
 	}
 }
 
-// findBestStartFile finds the file with the best compression ratio for its last window
+// findBestStartFile finds the file with the worst compression ratio overall (least compressible)
 func findBestStartFile(files []*TarFile, halfWindowSize int) int {
 	bestIdx := 0
-	bestRatio := math.MaxFloat64
+	worstRatio := 0.0
 
 	for i, file := range files {
-		// Compress just the last window
-		compressed, err := compressBytes(file.LastWindow)
+		// Compress the entire file content
+		compressed, err := compressBytes(file.Content)
 		if err != nil {
 			continue
 		}
-		ratio := float64(len(compressed)) / float64(len(file.LastWindow))
+		ratio := float64(len(compressed)) / float64(len(file.Content))
 
-		if ratio < bestRatio {
-			bestRatio = ratio
+		// Find the file with the highest ratio (least compressible)
+		if ratio > worstRatio {
+			worstRatio = ratio
 			bestIdx = i
 		}
 	}

@@ -40,7 +40,7 @@ After: <size in KB> <compression ratio in %>
 
 This mode:
 * Loops through all files within the tar contents
-* Starts by selecting file with maximum compression ratio for the last (compression window / 2) bytes
+* Starts by selecting the file with worst overall compression ratio (least compressible file)
 * Next, selects the file with maximum compression ratio for the first (compression window / 2) bytes combined with the previous file's last (compression window / 2) bytes
 * Collects checksums of all individual, original file contents and headers
 * Continues until an optimally-compressed chain of files is built
