@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"math/rand"
 	"time"
 
 	kgzip "github.com/klauspost/compress/gzip"
@@ -54,14 +55,17 @@ func GenerateTestFiles() (map[string][]byte, error) {
 	files["file4.txt"] = append(uniqueSection4, sameLastHalf...)
 
 	// Create 2 random noise files
+	// Use deterministic seed for reproducible test data
+	randomSource := rand.New(rand.NewSource(42))
+	
 	randomData1 := make([]byte, WindowSize)
-	if _, err := rand.Read(randomData1); err != nil {
+	if _, err := randomSource.Read(randomData1); err != nil {
 		return nil, fmt.Errorf("failed to generate random data: %w", err)
 	}
 	files["random1.dat"] = randomData1
 
 	randomData2 := make([]byte, WindowSize)
-	if _, err := rand.Read(randomData2); err != nil {
+	if _, err := randomSource.Read(randomData2); err != nil {
 		return nil, fmt.Errorf("failed to generate random data: %w", err)
 	}
 	files["random2.dat"] = randomData2
