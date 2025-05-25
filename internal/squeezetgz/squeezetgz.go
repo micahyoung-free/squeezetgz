@@ -268,6 +268,11 @@ func findBestStartFile(files []*TarFile, halfWindowSize int) int {
 	worstRatio := 0.0
 
 	for i, file := range files {
+		// Skip files smaller than the compression window
+		if len(file.Content) < halfWindowSize*2 {
+			continue
+		}
+		
 		// Compress the entire file content
 		compressed, err := compressBytes(file.Content)
 		if err != nil {
