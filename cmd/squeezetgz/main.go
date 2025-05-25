@@ -8,11 +8,12 @@ import (
 	"github.com/micahyoung-free/squeezetgz/internal/squeezetgz"
 )
 
-func main() {
-	// Define command line flags
-	bruteMode := flag.Bool("brute", false, "Use brute-force mode")
-	_ = flag.Bool("window", true, "Use compression-window optimizing mode (default)")
+var (
+	bruteMode = flag.Bool("brute", false, "Use brute-force mode")
+	_         = flag.Bool("window", true, "Use compression-window optimizing mode (default)")
+)
 
+func main() {
 	// Parse flags
 	flag.Parse()
 
