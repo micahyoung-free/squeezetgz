@@ -3,7 +3,6 @@ package testutils
 import (
 	"archive/tar"
 	"bytes"
-	"crypto/rand"
 	"fmt"
 	"math/rand"
 	"time"
