@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sync"
 
 	stdgzip "compress/gzip"
 	kgzip "github.com/klauspost/compress/gzip"
@@ -303,29 +304,68 @@ func headerToBytes(header *tar.Header) ([]byte, error) {
 
 // findBestNextFile finds the file that compresses best when appended to the given file
 func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize int) int {
+	if len(candidates) == 0 {
+		return 0
+	}
+
+	type result struct {
+		index int
+		ratio float64
+	}
+
+	// Create a channel to collect results
+	results := make(chan result, len(candidates))
+	
+	// Process each candidate in parallel
+	var wg sync.WaitGroup
+	for i, candidate := range candidates {
+		wg.Add(1)
+		go func(i int, candidate *TarFile) {
+			defer wg.Done()
+
+			// Get the candidate's header as bytes
+			headerBytes, err := headerToBytes(candidate.Header)
+			if err != nil {
+				// If we can't get header bytes, just use an empty slice
+				headerBytes = []byte{}
+			}
+
+			// Combine the last window of the previous file with the candidate's header and first window
+			combined := append(append(lastFile.LastWindow, headerBytes...), candidate.FirstWindow...)
+			compressed, err := compressBytes(combined)
+			if err != nil {
+				// Skip this candidate
+				return
+			}
+			ratio := float64(len(compressed)) / float64(len(combined))
+
+			// Send result to channel
+			results <- result{index: i, ratio: ratio}
+		}(i, candidate)
+	}
+
+	// Close the results channel when all goroutines are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Find the best ratio from all results
 	bestIdx := 0
 	bestRatio := math.MaxFloat64
+	resultsFound := false
 
-	for i, candidate := range candidates {
-		// Get the candidate's header as bytes
-		headerBytes, err := headerToBytes(candidate.Header)
-		if err != nil {
-			// If we can't get header bytes, just use an empty slice
-			headerBytes = []byte{}
+	for r := range results {
+		resultsFound = true
+		if r.ratio < bestRatio {
+			bestRatio = r.ratio
+			bestIdx = r.index
 		}
+	}
 
-		// Combine the last window of the previous file with the candidate's header and first window
-		combined := append(append(lastFile.LastWindow, headerBytes...), candidate.FirstWindow...)
-		compressed, err := compressBytes(combined)
-		if err != nil {
-			continue
-		}
-		ratio := float64(len(compressed)) / float64(len(combined))
-
-		if ratio < bestRatio {
-			bestRatio = ratio
-			bestIdx = i
-		}
+	// If no valid results were found, return the first candidate as a fallback
+	if !resultsFound && len(candidates) > 0 {
+		return 0
 	}
 
 	return bestIdx
