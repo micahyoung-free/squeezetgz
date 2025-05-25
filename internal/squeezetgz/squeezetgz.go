@@ -91,6 +91,11 @@ func OptimizeTarGz(inputPath, outputPath string, mode OptimizationMode) (*Optimi
 		return nil, fmt.Errorf("failed to create optimized tar.gz: %w", err)
 	}
 
+	// Validate checksums before writing output
+	if !validateChecksums(files, orderedFiles) {
+		return nil, fmt.Errorf("checksum validation failed, file integrity compromised")
+	}
+
 	// Write the output file
 	if err := os.WriteFile(outputPath, optimizedTarGz, 0644); err != nil {
 		return nil, fmt.Errorf("failed to write output file: %w", err)
@@ -187,9 +192,6 @@ func optimizeWindow(files []*TarFile, halfWindowSize int) ([]*TarFile, error) {
 		remaining = append(remaining[:bestNextIdx], remaining[bestNextIdx+1:]...)
 	}
 
-	// Validate checksums
-	validateChecksums(files, ordered)
-
 	return ordered, nil
 }
 
@@ -210,9 +212,6 @@ func optimizeBruteForce(files []*TarFile) ([]*TarFile, error) {
 
 	// Generate all permutations and find the one with the best compression
 	permuteAndCompress(files, 0, &bestOrder, &bestSize)
-
-	// Validate checksums
-	validateChecksums(files, bestOrder)
 
 	return bestOrder, nil
 }
