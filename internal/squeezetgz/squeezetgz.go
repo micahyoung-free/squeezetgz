@@ -62,28 +62,46 @@ func OptimizeTarGz(inputPath, outputPath string, mode OptimizationMode) (*Optimi
 
 	// Prepare the first and last windows for each file
 	for i := range files {
-		if len(files[i].Content) <= halfWindowSize {
-			files[i].FirstWindow = files[i].Content
-			files[i].LastWindow = files[i].Content
-		} else {
-			files[i].FirstWindow = files[i].Content[:halfWindowSize]
-			files[i].LastWindow = files[i].Content[len(files[i].Content)-halfWindowSize:]
+		// Only prepare windows for regular files
+		if files[i].Header.Typeflag == tar.TypeReg {
+			if len(files[i].Content) <= halfWindowSize {
+				files[i].FirstWindow = files[i].Content
+				files[i].LastWindow = files[i].Content
+			} else {
+				files[i].FirstWindow = files[i].Content[:halfWindowSize]
+				files[i].LastWindow = files[i].Content[len(files[i].Content)-halfWindowSize:]
+			}
 		}
 	}
 
-	// Reorder the files based on the selected optimization mode
-	var orderedFiles []*TarFile
+	// Separate regular files from special files
+	var regularFiles []*TarFile
+	var specialFiles []*TarFile
+	
+	for _, file := range files {
+		if file.Header.Typeflag == tar.TypeReg {
+			regularFiles = append(regularFiles, file)
+		} else {
+			specialFiles = append(specialFiles, file)
+		}
+	}
+
+	// Reorder only the regular files based on the selected optimization mode
+	var orderedRegularFiles []*TarFile
 	if mode == BruteForceMode {
-		orderedFiles, err = optimizeBruteForce(files)
+		orderedRegularFiles, err = optimizeBruteForce(regularFiles)
 		if err != nil {
 			return nil, fmt.Errorf("failed to optimize with brute force: %w", err)
 		}
 	} else {
-		orderedFiles, err = optimizeWindow(files, halfWindowSize)
+		orderedRegularFiles, err = optimizeWindow(regularFiles, halfWindowSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to optimize with window mode: %w", err)
 		}
 	}
+
+	// Combine the ordered regular files with the special files
+	orderedFiles := append(orderedRegularFiles, specialFiles...)
 
 	// Create a new tar.gz with the optimized order
 	optimizedTarGz, err := createTarGz(orderedFiles)
@@ -133,19 +151,18 @@ func extractTarGz(data []byte) (int64, []*TarFile, error) {
 			return 0, nil, fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		// Skip directories and special files
-		if header.Typeflag != tar.TypeReg {
-			continue
+		// Process based on file type
+		var contentBytes []byte
+		if header.Typeflag == tar.TypeReg {
+			// For regular files, read the content
+			var content bytes.Buffer
+			if _, err := io.Copy(&content, tr); err != nil {
+				return 0, nil, fmt.Errorf("failed to read file content: %w", err)
+			}
+			contentBytes = content.Bytes()
+			totalUncompressedSize += int64(len(contentBytes))
 		}
-
-		// Read the file content
-		var content bytes.Buffer
-		if _, err := io.Copy(&content, tr); err != nil {
-			return 0, nil, fmt.Errorf("failed to read file content: %w", err)
-		}
-
-		contentBytes := content.Bytes()
-		totalUncompressedSize += int64(len(contentBytes))
+		// For all other types (symlinks, etc.), content remains empty slice
 
 		// Calculate checksums
 		contentChecksum := sha256.Sum256(contentBytes)
@@ -377,11 +394,19 @@ func validateChecksums(original, reordered []*TarFile) bool {
 
 	// Verify all reordered files match the originals
 	for _, file := range reordered {
-		if _, exists := originalChecksums[file.Checksum]; !exists {
-			return false
-		}
-		if _, exists := originalHeaderChecksums[file.HeaderHash]; !exists {
-			return false
+		// For non-regular files, we only check header checksums
+		if file.Header.Typeflag != tar.TypeReg {
+			if _, exists := originalHeaderChecksums[file.HeaderHash]; !exists {
+				return false
+			}
+		} else {
+			// For regular files, check both content and header checksums
+			if _, exists := originalChecksums[file.Checksum]; !exists {
+				return false
+			}
+			if _, exists := originalHeaderChecksums[file.HeaderHash]; !exists {
+				return false
+			}
 		}
 	}
 
