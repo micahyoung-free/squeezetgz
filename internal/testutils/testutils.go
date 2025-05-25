@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 
 	kgzip "github.com/klauspost/compress/gzip"
@@ -97,20 +98,29 @@ func CreateTarGz(files map[string][]byte) ([]byte, error) {
 	// Create tar writer
 	tw := tar.NewWriter(gzw)
 
-	// Add files to the tar archive
-	for name, content := range files {
+	// Sort file names for deterministic order
+	var fileNames []string
+	for name := range files {
+		fileNames = append(fileNames, name)
+	}
+	sort.Strings(fileNames)
+
+	// Add files to the tar archive in sorted order
+	for _, name := range fileNames {
+		// Use a fixed timestamp for deterministic test results
+		fixedTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 		header := &tar.Header{
 			Name:    name,
 			Mode:    0644,
-			Size:    int64(len(content)),
-			ModTime: time.Now(),
+			Size:    int64(len(files[name])),
+			ModTime: fixedTime,
 		}
 
 		if err := tw.WriteHeader(header); err != nil {
 			return nil, fmt.Errorf("failed to write tar header: %w", err)
 		}
 
-		if _, err := tw.Write(content); err != nil {
+		if _, err := tw.Write(files[name]); err != nil {
 			return nil, fmt.Errorf("failed to write file content: %w", err)
 		}
 	}
