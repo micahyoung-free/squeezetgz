@@ -42,7 +42,7 @@ type TarFile struct {
 }
 
 // OptimizeTarGz optimizes a tar.gz file by reordering its contents
-func OptimizeTarGz(inputPath, outputPath string, mode OptimizationMode, debug bool) (*OptimizationResult, error) {
+func OptimizeTarGz(inputPath, outputPath string, mode OptimizationMode) (*OptimizationResult, error) {
 	// Read the input file
 	inputBytes, err := os.ReadFile(inputPath)
 	if err != nil {
@@ -79,7 +79,7 @@ func OptimizeTarGz(inputPath, outputPath string, mode OptimizationMode, debug bo
 			return nil, fmt.Errorf("failed to optimize with brute force: %w", err)
 		}
 	} else {
-		orderedFiles, err = optimizeWindow(files, halfWindowSize, debug)
+		orderedFiles, err = optimizeWindow(files, halfWindowSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to optimize with window mode: %w", err)
 		}
@@ -169,7 +169,7 @@ func extractTarGz(data []byte) (int64, []*TarFile, error) {
 }
 
 // optimizeWindow implements the graph-based, compression-window optimizing mode
-func optimizeWindow(files []*TarFile, halfWindowSize int, debug bool) ([]*TarFile, error) {
+func optimizeWindow(files []*TarFile, halfWindowSize int) ([]*TarFile, error) {
 	if len(files) == 0 {
 		return files, nil
 	}
@@ -187,7 +187,7 @@ func optimizeWindow(files []*TarFile, halfWindowSize int, debug bool) ([]*TarFil
 	// Build the chain by finding the best next file
 	for len(remaining) > 0 {
 		lastFile := ordered[len(ordered)-1]
-		bestNextIdx := findBestNextFile(lastFile, remaining, halfWindowSize, debug)
+		bestNextIdx := findBestNextFile(lastFile, remaining, halfWindowSize)
 		ordered = append(ordered, remaining[bestNextIdx])
 		remaining = append(remaining[:bestNextIdx], remaining[bestNextIdx+1:]...)
 	}
@@ -279,7 +279,7 @@ func headerToBytes(header *tar.Header) ([]byte, error) {
 }
 
 // findBestNextFile finds the file that compresses best when appended to the given file
-func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize int, debug bool) int {
+func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize int) int {
 	bestIdx := 0
 	bestRatio := math.MaxFloat64
 
@@ -299,36 +299,9 @@ func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize i
 		}
 		ratio := float64(len(compressed)) / float64(len(combined))
 
-		if debug {
-			fmt.Printf("Evaluating: lastWindow (%s) + candidate header (%s) + firstWindow\n", 
-				lastFile.Header.Name, candidate.Header.Name)
-			fmt.Printf("  Last Window Size: %d bytes\n", len(lastFile.LastWindow))
-			fmt.Printf("  Header Size: %d bytes\n", len(headerBytes))
-			fmt.Printf("  First Window Size: %d bytes\n", len(candidate.FirstWindow))
-			fmt.Printf("  Combined Size: %d bytes\n", len(combined))
-			fmt.Printf("  Compressed Size: %d bytes\n", len(compressed))
-			fmt.Printf("  Compression Ratio: %.4f\n", ratio)
-		}
-
 		if ratio < bestRatio {
 			bestRatio = ratio
 			bestIdx = i
-		}
-	}
-
-	if debug {
-		// Get the best candidate's header as bytes for the final output
-		headerBytes, err := headerToBytes(candidates[bestIdx].Header)
-		if err != nil {
-			headerBytes = []byte{}
-		}
-		
-		combinedBest := append(append(lastFile.LastWindow, headerBytes...), candidates[bestIdx].FirstWindow...)
-		compressedBest, err := compressBytes(combinedBest)
-		if err == nil {
-			fmt.Printf("Selected Best Candidate: %s (Index: %d, Ratio: %.4f)\n", 
-				candidates[bestIdx].Header.Name, bestIdx, 
-				float64(len(compressedBest))/float64(len(combinedBest)))
 		}
 	}
 
