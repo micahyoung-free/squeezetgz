@@ -3,8 +3,11 @@ package testutils
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 	"sort"
 	"time"
 
@@ -134,4 +137,44 @@ func CreateTarGz(files map[string][]byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// GetFileOrder extracts the order of files from a tar.gz file
+func GetFileOrder(tarGzPath string) ([]string, error) {
+	// Read the tar.gz file
+	data, err := os.ReadFile(tarGzPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tar.gz file: %w", err)
+	}
+
+	// Create a gzip reader
+	gzr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzr.Close()
+
+	// Create a tar reader
+	tr := tar.NewReader(gzr)
+	var fileOrder []string
+
+	// Read all headers to get file order
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Skip directories and special files
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+
+		fileOrder = append(fileOrder, header.Name)
+	}
+
+	return fileOrder, nil
 }
