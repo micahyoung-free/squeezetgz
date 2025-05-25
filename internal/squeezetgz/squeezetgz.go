@@ -264,14 +264,32 @@ func findBestStartFile(files []*TarFile, halfWindowSize int) int {
 	return bestIdx
 }
 
+// headerToBytes converts a tar.Header to bytes
+func headerToBytes(header *tar.Header) ([]byte, error) {
+	headerBytes := &bytes.Buffer{}
+	tw := tar.NewWriter(headerBytes)
+	if err := tw.WriteHeader(header); err != nil {
+		return nil, fmt.Errorf("failed to convert header to bytes: %w", err)
+	}
+	tw.Close()
+	return headerBytes.Bytes(), nil
+}
+
 // findBestNextFile finds the file that compresses best when appended to the given file
 func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize int, debug bool) int {
 	bestIdx := 0
 	bestRatio := math.MaxFloat64
 
 	for i, candidate := range candidates {
-		// Combine the last window of the previous file with the first window of this candidate
-		combined := append(lastFile.LastWindow, candidate.FirstWindow...)
+		// Get the candidate's header as bytes
+		headerBytes, err := headerToBytes(candidate.Header)
+		if err != nil {
+			// If we can't get header bytes, just use an empty slice
+			headerBytes = []byte{}
+		}
+
+		// Combine the last window of the previous file with the candidate's header and first window
+		combined := append(append(lastFile.LastWindow, headerBytes...), candidate.FirstWindow...)
 		compressed := compressBytes(combined)
 		ratio := float64(len(compressed)) / float64(len(combined))
 
@@ -279,6 +297,7 @@ func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize i
 			fmt.Printf("Evaluating: lastWindow (%s) + candidate header (%s) + firstWindow\n", 
 				lastFile.Header.Name, candidate.Header.Name)
 			fmt.Printf("  Last Window Size: %d bytes\n", len(lastFile.LastWindow))
+			fmt.Printf("  Header Size: %d bytes\n", len(headerBytes))
 			fmt.Printf("  First Window Size: %d bytes\n", len(candidate.FirstWindow))
 			fmt.Printf("  Combined Size: %d bytes\n", len(combined))
 			fmt.Printf("  Compressed Size: %d bytes\n", len(compressed))
@@ -292,10 +311,17 @@ func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize i
 	}
 
 	if debug {
+		// Get the best candidate's header as bytes for the final output
+		headerBytes, err := headerToBytes(candidates[bestIdx].Header)
+		if err != nil {
+			headerBytes = []byte{}
+		}
+		
+		combinedBest := append(append(lastFile.LastWindow, headerBytes...), candidates[bestIdx].FirstWindow...)
+		compressedBest := compressBytes(combinedBest)
 		fmt.Printf("Selected Best Candidate: %s (Index: %d, Ratio: %.4f)\n", 
 			candidates[bestIdx].Header.Name, bestIdx, 
-			float64(len(compressBytes(append(lastFile.LastWindow, candidates[bestIdx].FirstWindow...))))/
-			float64(len(append(lastFile.LastWindow, candidates[bestIdx].FirstWindow...))))
+			float64(len(compressedBest))/float64(len(combinedBest)))
 	}
 
 	return bestIdx
