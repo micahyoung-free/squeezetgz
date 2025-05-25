@@ -210,9 +210,21 @@ func verifyOptimizedOrder(t *testing.T, fileOrder []string, modeName string) {
 	pos3 := findPos("file3.txt")
 	pos4 := findPos("file4.txt")
 	
-	// Verify all files are present
+	// Verify all regular files are present
 	if pos1 == -1 || pos2 == -1 || pos3 == -1 || pos4 == -1 {
 		t.Fatalf("Not all test files found in output order")
+	}
+	
+	// Verify special files are present (empty file and symlink)
+	emptyFilePos := findPos("empty.txt")
+	symlinkPos := findPos("link-to-file1.txt")
+	
+	if emptyFilePos == -1 {
+		t.Errorf("%s: Empty file 'empty.txt' is missing from output", modeName)
+	}
+	
+	if symlinkPos == -1 {
+		t.Errorf("%s: Symlink 'link-to-file1.txt' is missing from output", modeName)
 	}
 	
 	// Check for expected patterns - at least one of these should be true for optimal compression:

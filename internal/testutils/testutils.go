@@ -19,9 +19,28 @@ const (
 	WindowSize = 32 * 1024
 )
 
+// FileType represents the type of file to be created
+type FileType int
+
+const (
+	// RegularFile is a standard file with content
+	RegularFile FileType = iota
+	// EmptyFile is a file with zero size
+	EmptyFile
+	// SymlinkFile is a symbolic link to another file
+	SymlinkFile
+)
+
+// TestFile represents a file with its content and metadata
+type TestFile struct {
+	Content  []byte
+	Type     FileType
+	LinkTo   string // Target path for symlinks
+}
+
 // GenerateTestFiles generates a set of test files as specified in the requirements
-func GenerateTestFiles() (map[string][]byte, error) {
-	files := make(map[string][]byte)
+func GenerateTestFiles() (map[string]TestFile, error) {
+	files := make(map[string]TestFile)
 	
 	// Create 4 alphabetical files with matching halves
 	// Each pair will have identical first/last half window
@@ -46,16 +65,28 @@ func GenerateTestFiles() (map[string][]byte, error) {
 	uniqueSection4 := generateAlphabeticalBytes(WindowSize, 'E')
 
 	// Assemble file 1: same first half + unique middle
-	files["file1.txt"] = append(sameFirstHalf, uniqueSection1...)
+	files["file1.txt"] = TestFile{
+		Content: append(sameFirstHalf, uniqueSection1...),
+		Type:    RegularFile,
+	}
 
 	// Assemble file 2: same first half + unique middle
-	files["file2.txt"] = append(sameFirstHalf, uniqueSection2...)
+	files["file2.txt"] = TestFile{
+		Content: append(sameFirstHalf, uniqueSection2...),
+		Type:    RegularFile,
+	}
 
 	// Assemble file 3: unique middle + same last half
-	files["file3.txt"] = append(uniqueSection3, sameLastHalf...)
+	files["file3.txt"] = TestFile{
+		Content: append(uniqueSection3, sameLastHalf...),
+		Type:    RegularFile,
+	}
 
 	// Assemble file 4: unique middle + same last half
-	files["file4.txt"] = append(uniqueSection4, sameLastHalf...)
+	files["file4.txt"] = TestFile{
+		Content: append(uniqueSection4, sameLastHalf...),
+		Type:    RegularFile,
+	}
 
 	// Create 2 random noise files
 	// Use deterministic seed for reproducible test data
@@ -65,13 +96,32 @@ func GenerateTestFiles() (map[string][]byte, error) {
 	if _, err := randomSource.Read(randomData1); err != nil {
 		return nil, fmt.Errorf("failed to generate random data: %w", err)
 	}
-	files["random1.dat"] = randomData1
+	files["random1.dat"] = TestFile{
+		Content: randomData1,
+		Type:    RegularFile,
+	}
 
 	randomData2 := make([]byte, WindowSize)
 	if _, err := randomSource.Read(randomData2); err != nil {
 		return nil, fmt.Errorf("failed to generate random data: %w", err)
 	}
-	files["random2.dat"] = randomData2
+	files["random2.dat"] = TestFile{
+		Content: randomData2,
+		Type:    RegularFile,
+	}
+
+	// Add an empty file
+	files["empty.txt"] = TestFile{
+		Content: []byte{},
+		Type:    EmptyFile,
+	}
+
+	// Add a symlink to file1.txt
+	files["link-to-file1.txt"] = TestFile{
+		Content: []byte{},
+		Type:    SymlinkFile,
+		LinkTo:  "file1.txt",
+	}
 
 	return files, nil
 }
@@ -89,7 +139,7 @@ func generateAlphabeticalBytes(size int, startChar byte) []byte {
 }
 
 // CreateTarGz creates a tar.gz file from the provided files
-func CreateTarGz(files map[string][]byte) ([]byte, error) {
+func CreateTarGz(files map[string]TestFile) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Create gzip writer with maximum compression
@@ -110,21 +160,42 @@ func CreateTarGz(files map[string][]byte) ([]byte, error) {
 
 	// Add files to the tar archive in sorted order
 	for _, name := range fileNames {
+		file := files[name]
+		
 		// Use a fixed timestamp for deterministic test results
 		fixedTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
-		header := &tar.Header{
-			Name:    name,
-			Mode:    0644,
-			Size:    int64(len(files[name])),
-			ModTime: fixedTime,
+		
+		// Create the appropriate header based on file type
+		var header *tar.Header
+		
+		switch file.Type {
+		case RegularFile, EmptyFile:
+			header = &tar.Header{
+				Name:    name,
+				Mode:    0644,
+				Size:    int64(len(file.Content)),
+				ModTime: fixedTime,
+				Typeflag: tar.TypeReg,
+			}
+		case SymlinkFile:
+			header = &tar.Header{
+				Name:     name,
+				Linkname: file.LinkTo,
+				Mode:     0777,
+				ModTime:  fixedTime,
+				Typeflag: tar.TypeSymlink,
+			}
 		}
 
 		if err := tw.WriteHeader(header); err != nil {
 			return nil, fmt.Errorf("failed to write tar header: %w", err)
 		}
 
-		if _, err := tw.Write(files[name]); err != nil {
-			return nil, fmt.Errorf("failed to write file content: %w", err)
+		// Only write content for regular files
+		if file.Type == RegularFile || file.Type == EmptyFile {
+			if _, err := tw.Write(file.Content); err != nil {
+				return nil, fmt.Errorf("failed to write file content: %w", err)
+			}
 		}
 	}
 
@@ -168,11 +239,7 @@ func GetFileOrder(tarGzPath string) ([]string, error) {
 			return nil, fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		// Skip directories and special files
-		if header.Typeflag != tar.TypeReg {
-			continue
-		}
-
+		// Include all file types in the order
 		fileOrder = append(fileOrder, header.Name)
 	}
 
