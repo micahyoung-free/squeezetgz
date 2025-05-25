@@ -328,12 +328,20 @@ func findBestNextFile(lastFile *TarFile, candidates []*TarFile, halfWindowSize i
 }
 
 // compressBytes compresses a byte slice using klauspost/compress/gzip
-func compressBytes(data []byte) []byte {
+func compressBytes(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	gzw, _ := kgzip.NewWriterLevel(&buf, kgzip.BestCompression)
-	gzw.Write(data)
-	gzw.Close()
-	return buf.Bytes()
+	gzw, err := kgzip.NewWriterLevel(&buf, kgzip.BestCompression)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip writer: %w", err)
+	}
+	if _, err := gzw.Write(data); err != nil {
+		gzw.Close() // Ensure the writer is closed even if Write fails
+		return nil, fmt.Errorf("failed to write data to gzip writer: %w", err)
+	}
+	if err := gzw.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 // createTarGz creates a tar.gz file from the provided files
